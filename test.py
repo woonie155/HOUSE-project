@@ -3,6 +3,8 @@ import mediapipe as mp
 import numpy as np
 from tensorflow.keras.models import load_model
 import pyautogui
+import time, os
+import math
 
 actions = ['ALT_F4', 'ALT_TAB', 'Full', 'Mute']
 seq_length = 30
@@ -31,6 +33,48 @@ after_x = 0
 after_y = 0
 tmp=0
 flag=0
+tmp2=1
+
+
+p_x_0 = 0; p_y_0 = 0; p_z_0 = 0 
+p_x_8 = 0; p_y_8 = 0; p_z_8 = 0
+point = 0; 
+while cap.isOpened():
+    if point == 1:
+        break
+    ret, img = cap.read()
+    img = cv2.flip(img, 1)
+    cv2.putText(img, f' Measure the Point...', org=(10, 30), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=1, color=(255, 255, 255), thickness=2)
+    cv2.imshow('img', img)
+    cv2.waitKey(200)
+    
+    start_time = time.time()
+    while time.time() - start_time < 3: #3초간 기준점 측정
+        ret, img = cap.read()
+        
+        img = cv2.flip(img, 1)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        result = hands.process(img)
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+
+        if result.multi_hand_landmarks is not None:
+            for res in result.multi_hand_landmarks:
+                joint = np.zeros((21, 4))
+                for j, lm in enumerate(res.landmark):
+                    joint[j] = [lm.x, lm.y, lm.z, j]           
+                p_x_0 = joint[0, 0]; p_y_0 = joint[0, 1]; p_z_0 = joint[0, 2]
+                p_x_8 = joint[8, 0]; p_y_8 = joint[8, 1]; p_z_8 = joint[8, 2]
+            point = 1
+                
+
+# 2차평면에서의 각도를 구해야함.  4번과 0번의 각도 계산
+p_x_0 *= 100; p_x_8 *= 100 # 각 점의 x좌표
+p_y_0 *= 100; p_y_8 *= 100 # 각 점의 y좌표
+p_y_0 = 100 - p_y_0; p_y_8 = 100-p_y_8
+height = p_y_8 - p_y_0; dis = p_x_8 - p_x_0; 
+stand_degree = math.atan2(height, dis)
+stand_degree = math.degrees(stand_degree)
+
 
 while cap.isOpened():
     ret, img = cap.read()
@@ -46,24 +90,48 @@ while cap.isOpened():
             joint = np.zeros((21, 4))
             for j, lm in enumerate(res.landmark):
                 joint[j] = [lm.x, lm.y, lm.z, j]            
-            
+                
             if tmp == 0:
-                before_x = joint[4,0]*100
-                before_y = joint[4,1]*100
+                before_x = joint[8, 0]*100
+                before_y = joint[8, 1]*100
                 tmp=1
+                p_x_0 = joint[0, 0]; p_y_0 = joint[0, 1]; p_z_0 = joint[0, 2]
+                p_x_8 = joint[8, 0]; p_y_8 = joint[8, 1]; p_z_8 = joint[8, 2]
+                p_x_0 *= 100; p_x_8 *= 100 # 각 점의 x좌표
+                p_y_0 *= 100; p_y_8 *= 100 # 각 점의 y좌표
+                p_y_0 = 100 - p_y_0; p_y_8 = 100 - p_y_8
+                height = p_y_8 - p_y_0; dis = p_x_8 - p_x_0
+                be_cur = math.atan2(height, dis) 
+                be_cur = math.degrees(be_cur)
             else:
-                after_x = before_x - joint[4, 0]*100
-                after_y = before_y - joint[4, 1]*100
+                after_x = before_x - joint[8, 0]*100
+                after_y = before_y - joint[8, 1]*100
                 tmp=0
                 flag = 1
-            
+                p_x_0 = joint[0, 0]; p_y_0 = joint[0, 1]; p_z_0 = joint[0, 2]
+                p_x_8 = joint[8, 0]; p_y_8 = joint[8, 1]; p_z_8 = joint[8, 2]
+                p_x_0 *= 100; p_x_8 *= 100 # 각 점의 x좌표
+                p_y_0 *= 100; p_y_8 *= 100 # 각 점의 y좌표
+                p_y_0 = 100 - p_y_0; p_y_8 = 100 - p_y_8
+                height = p_y_8 - p_y_0; dis = p_x_8 - p_x_0
+                cur = math.atan2(height, dis) 
+                cur = math.degrees(cur)
+
+
             if  flag == 1:
-                if(abs(after_x)>8 ) or (abs(after_y)>8):
-                    continue
-                pyautogui.move(-after_x*30, -after_y*30)
-                print(after_x, after_y)
-                flag=0
-                
+                com = (be_cur-cur)
+                plus = stand_degree - cur
+                if (abs(after_x)<8) and (abs(after_y)<8):
+                    pyautogui.move(-after_x*30, -after_y*30 )
+                    if(abs(after_x*30)<20 and abs(after_y*30)<20):
+                        if cur>90: 
+                            pyautogui.move(-20,0)
+                        else:
+                            pyautogui.move(20,0)
+
+                    print(-after_x, -after_y)
+                    flag=0
+
 
 
             엄검x = abs(joint[4,0]*100-joint[8,0]*100)
