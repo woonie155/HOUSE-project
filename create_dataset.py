@@ -4,7 +4,7 @@ import mediapipe as mp
 import numpy as np
 import time, os
 
-actions = ['ALT_F4', 'ALT_TAB', 'ENTER']
+actions = ['ALT_TAB', 'ALT_F4', 'ENTER', 'SOUND_CONTROL']
 seq_length = 30 
 secs_for_action = 30 
 
@@ -43,33 +43,26 @@ while cap.isOpened():
                     joint = np.zeros((21, 2))
                     for j, lm in enumerate(res.landmark):
                         joint[j] = [lm.x, lm.y] 
-
                     v1 = joint[[0,1,2,3,0,5,6,7,0,9,10,11,0,13,14,15,0,17,18,19], :2] 
                     v2 = joint[[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20], :2] 
                     v = v2 - v1 # [20, 3]
                     v = v / np.linalg.norm(v, axis=1)[:, np.newaxis]
 
-                    angle = np.arccos(np.einsum('ij,ij->i',
+                    angle = np.arccos(np.einsum('nt,nt->n',
                         v[[0,1,2,4,5,6,8,9,10,12,13,14,16,17,18],:], 
                         v[[1,2,3,5,6,7,9,10,11,13,14,15,17,18,19],:])) 
                     angle = np.degrees(angle) 
 
-                    #라벨생성
                     angle_label = np.array([angle], dtype=np.float32)
                     angle_label = np.append(angle_label, idx)
-
-                    d = np.concatenate([joint.flatten(), angle_label])
-                    data.append(d)
+                    add = np.concatenate([joint.flatten(), angle_label])
+                    data.append(add)
                     mp_drawing.draw_landmarks(img, res, mp_hands.HAND_CONNECTIONS)
-
             cv2.imshow('img', img)
             if cv2.waitKey(1) == ord('q'):
                 break   
-
+        
         data = np.array(data) 
-        # print(action, data.shape)
-        # np.save(os.path.join('dataset', f'raw_{action}'), data) #npy로 저장
-
         full_seq_data = []
         for seq in range(len(data) - seq_length):
             full_seq_data.append(data[seq:seq + seq_length])

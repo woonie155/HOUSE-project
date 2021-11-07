@@ -6,7 +6,7 @@ import pyautogui
 import time, os
 import math
 
-actions = ['ALT_F4', 'ALT_TAB', 'Full', 'Mute']
+actions = ['ALT_F4', 'ALT_TAB', 'ENTER']
 seq_length = 30
 
 model = load_model('models/model.h5')
@@ -20,12 +20,6 @@ hands = mp_hands.Hands(
     min_tracking_confidence=0.5)
 
 cap = cv2.VideoCapture(0)
-
-# w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-# h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-# fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
-# out = cv2.VideoWriter('input.mp4', fourcc, cap.get(cv2.CAP_PROP_FPS), (w, h))
-# out2 = cv2.VideoWriter('output.mp4', fourcc, cap.get(cv2.CAP_PROP_FPS), (w, h))
 
 seq = []
 action_seq = []
@@ -134,32 +128,7 @@ while cap.isOpened():
 
 
 
-            엄검x = abs(joint[4,0]*100-joint[8,0]*100)
-            엄검y = abs(joint[4,1]*100-joint[8,1]*100)
-            엄검z = abs(joint[4,2]*100-joint[8,2]*100)
 
-            엄중x = abs(joint[4,0]*100-joint[12,0]*100)
-            엄중y = abs(joint[4,1]*100-joint[12,1]*100)
-            엄중z = abs(joint[4,2]*100-joint[12,2]*100)
-
-            엄약x = abs(joint[4,0]*100-joint[16,0]*100)
-            엄약y = abs(joint[4,1]*100-joint[16,1]*100)
-            엄약z = abs(joint[4,2]*100-joint[16,2]*100)
-
-            # #좌클릭
-            # if 엄검x < 2 and 엄검y <2 and 엄검z <4.5:
-            #     pyautogui.click()
-
-            # #우클릭
-            # if 엄중x < 2 and 엄중y <2 and 엄중z <4.5:
-            #     pyautogui.rightClick()
-
-            # #휠클릭
-            # if 엄약x < 2 and 엄약y <2 and 엄약z <4.5:
-            #     pyautogui.middleClick()
-
-            #커서이동
-            #pyautogui.move((joint[4,0]*10-5)*2, (joint[4,1]*10-5)*2)
 
 
 
@@ -206,13 +175,9 @@ while cap.isOpened():
                 this_action = action
             else:
                 pass
-                # pyautogui.move((joint[4,0]*10-5)*10, (joint[4,1]*10-5)*10)
-                #모니터pyautogui()
+
             cv2.putText(img, f'{this_action.upper()}', org=(int(res.landmark[0].x * img.shape[1]), int(res.landmark[0].y * img.shape[0] + 20)), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=1, color=(255, 255, 255), thickness=2)
             
-
-    # out.write(img0)
-    # out2.write(img)
     cv2.imshow('img', img)
     if cv2.waitKey(1) == ord('q'):
         break
