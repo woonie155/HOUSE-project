@@ -3,9 +3,10 @@ import mediapipe as mp
 import numpy as np
 from tensorflow.keras.models import load_model
 import pyautogui as pg
-import keyboard
 import time, os
 import math
+import datetime as dt
+from pynput import keyboard
 
 gesture = ['ALT_TAB', 'ALT_F4', 'FULL', 'SOUND_CONTROL']
 seq_length = 30
@@ -45,6 +46,8 @@ def arithMean(landmarks):
     return sum_x / 21, sum_y / 21
 
 key_value= 0.08
+key_flag = 0
+c=1
 #키보트 이벤트 가리기
 def keybord_event_flag(landmarks): #4,8,12,16,20
     if(abs(landmarks[4].x - landmarks[16].x)<=key_value and abs(landmarks[4].x - landmarks[20].x)<=key_value
@@ -61,12 +64,15 @@ while cap.isOpened():
     img = cv2.flip(img, 1)
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     result = hands.process(img)
-    img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-
+    img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)    
     if result.multi_hand_landmarks is not None:
         for hand_landmarks in result.multi_hand_landmarks:
             if not keybord_event_flag(hand_landmarks.landmark):
                 #gesture_seq=[]
+                if key_flag == 1:
+                    c += 1
+                    if c%12 == 0:
+                        key_flag = 0; c = 1
                 curX, curY = arithMean(hand_landmarks.landmark)
                 curX = (((curX - 0.5) / ratio) + 0.5) * winWidth
                 curY = (((curY - 0.5) / ratio) + 0.5) * winHeight
@@ -74,7 +80,7 @@ while cap.isOpened():
 
                 cv2.putText(img, text='Hand Detected', org=(10, 30),
                     fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5, 
-                    color=(0, 0, 0), thickness=2)
+                    color=(255, 200, 255), thickness=2)
                 mp_drawing.draw_landmarks(img,hand_landmarks,mp_hands.HAND_CONNECTIONS)
 
                 if eucDist2d(hand_landmarks.landmark[8].x,
@@ -110,23 +116,33 @@ while cap.isOpened():
                     continue
                 key_event = gesture[i_pred]
                 gesture_seq.append(key_event)
-                if len(gesture_seq) < 4:
+                if len(gesture_seq) < 3:
                     continue
                 this_gesture = '?' 
                 
-                if gesture_seq[-1] == gesture_seq[-2] == gesture_seq[-3] == gesture_seq[-4]: 
-                    this_gesture = key_event
-                    res = hand_landmarks
-                    if this_gesture == gesture[0]:
-                        keyboard.press('a') #알탭
-                    elif this_gesture == gesture[1]:
-                        pass #알포
-                    elif this_gesture == gesture[2]:
-                        pass #풀
-                    else: 
-                        pass #사운드
-                        
-                    cv2.putText(img, f'{this_gesture.upper()}', org=(10, 30), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=1, color=(255, 255, 255), thickness=2)
+                if gesture_seq[-1] == gesture_seq[-2] == gesture_seq[-3]: 
+                    if key_flag == 0:
+                        this_gesture = key_event; res = hand_landmarks
+                        key_flag = 1; gesture_seq=[]; seq=[]
+                        if this_gesture == gesture[0]:
+                            pg.hotkey('alt', 'tab')
+                            print("알탭")
+                            time.sleep(1)
+
+                        elif this_gesture == gesture[1]:
+                            pg.hotkey('alt', 'F4')
+                            print("알포")
+                            time.sleep(0.5)
+
+                        elif this_gesture == gesture[2]:
+                            pg.press('f')
+                            print("풀")
+                            time.sleep(0.5)
+                        else: 
+                            pg.press('m')
+                            print("볼륨")
+                            time.sleep(0.5)
+                        cv2.putText(img, f'{this_gesture.upper()}', org=(10, 30), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=1, color=(255, 255, 255), thickness=2)
                     
 
 
