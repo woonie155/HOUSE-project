@@ -13,8 +13,10 @@ from win32api import GetSystemMetrics
 import mouse
 
 devices = AudioUtilities.GetSpeakers()
-interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+interface = devices.Activate(IAudioEndpointVolume._iid_,CLSCTX_ALL, None)
 volume = cast(interface, POINTER(IAudioEndpointVolume)) 
+volume_ex=volume.GetVolumeRange()
+volume_range=[volume_ex[0], (volume_ex[0]+volume_ex[1])/2, volume_ex[1]]
 
 
 gesture = ['ALT_TAB', 'ALT_F4', 'FULL', 'SOUND_CONTROL']
@@ -201,10 +203,9 @@ def arithMean(landmarks):
         sum_y += landmark.y
     return sum_x / 21, sum_y / 21
 
-key_value= 0.08
-key_flag = 0
-#키보트 이벤트 가리기
-def keybord_event_flag(landmarks): #4,8,12,16,20
+#키보트 이벤트
+key_value= 0.08; key_flag = 0; tab_flag = 0;
+def keybord_event_flag(landmarks): 
     if(abs(landmarks[4].x - landmarks[16].x)<=key_value and abs(landmarks[4].x - landmarks[20].x)<=key_value
         and abs(landmarks[20].x - landmarks[16].x)<=key_value):
         if(abs(landmarks[4].y - landmarks[16].y)<=key_value and abs(landmarks[4].y - landmarks[20].y)<=key_value
@@ -214,7 +215,20 @@ def keybord_event_flag(landmarks): #4,8,12,16,20
         return 1
     return 0
 def volumn_value(landmarks):
-    return (landmarks[5].x - landmarks[8].x)*100
+    x_5= landmarks[5].x *100; y_5= landmarks[5].y *100; x_8= landmarks[8].x *100; y_8= landmarks[8].y *100
+    tanp=y_5-y_8; tanc=x_8-x_5;
+    degree = int(math.degrees(math.atan(tanc/tanp)))
+    v= volume_range[0] + (degree+23)*(abs(volume_range[2]-volume_range[0])/30)
+    if v >= volume_range[2]: v= volume_range[2]
+    if v <= volume_range[0]: v=volume_range[0]
+    return v
+def alt_tab(landmarks):
+    global tab_flag
+    if (landmarks[8].y < landmarks[14].y):
+        tab_flag = 0
+    if (tab_flag==0)and(landmarks[8].y > landmarks[14].y):
+        pg.press('tab')
+        tab_flag = 1
 
 
 start_time = dt.datetime.today().timestamp()
@@ -231,6 +245,7 @@ while cap.isOpened():
             if not keybord_event_flag(hand_landmarks.landmark):
                 seq=[];
                 if key_flag == 1: key_flag = 0;
+                if key_flag == 2: key_flag = 0; pg.keyUp('alt');
                 position_mouse(result.multi_hand_landmarks)
                 #click(results.multi_hand_landmarks[0], mouse_event_threshold_angle)
                 click2(result.multi_hand_landmarks[0])
@@ -243,63 +258,62 @@ while cap.isOpened():
 
                 
             else:    ############키보드 이벤트
-                joint = np.zeros((21, 2))
-                for j, lm in enumerate(hand_landmarks.landmark):
-                    joint[j] = [lm.x, lm.y] 
-                mp_drawing.draw_landmarks(img,hand_landmarks,mp_hands.HAND_CONNECTIONS)
-                v1 = joint[[0,1,2,3,0,5,6,7,0,9,10,11,0,13,14,15,0,17,18,19], :2]
-                v2 = joint[[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20], :2]
-                v = v2 - v1 # [20, 2] 
-                v = v / np.linalg.norm(v, axis=1)[:, np.newaxis]
-                angle = np.arccos(np.einsum('nt,nt->n',
-                    v[[0,1,2,4,5,6,8,9,10,12,13,14,16,17,18],:], 
-                    v[[1,2,3,5,6,7,9,10,11,13,14,15,17,18,19],:])) 
-                angle = np.degrees(angle) 
-                add = np.concatenate([joint.flatten(), angle])
-                seq.append(add)
+                if key_flag ==2:
+                    alt_tab(hand_landmarks.landmark)
+                    
+                else:
+                    joint = np.zeros((21, 2))
+                    for j, lm in enumerate(hand_landmarks.landmark):
+                        joint[j] = [lm.x, lm.y] 
+                    mp_drawing.draw_landmarks(img,hand_landmarks,mp_hands.HAND_CONNECTIONS)
+                    v1 = joint[[0,1,2,3,0,5,6,7,0,9,10,11,0,13,14,15,0,17,18,19], :2]
+                    v2 = joint[[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20], :2]
+                    v = v2 - v1 # [20, 2] 
+                    v = v / np.linalg.norm(v, axis=1)[:, np.newaxis]
+                    angle = np.arccos(np.einsum('nt,nt->n',
+                        v[[0,1,2,4,5,6,8,9,10,12,13,14,16,17,18],:], 
+                        v[[1,2,3,5,6,7,9,10,11,13,14,15,17,18,19],:])) 
+                    angle = np.degrees(angle) 
+                    add = np.concatenate([joint.flatten(), angle])
+                    seq.append(add)
 
-                if len(seq) < seq_length: 
-                    continue
-                input_data = np.expand_dims(np.array(seq[-seq_length:], dtype=np.float32), axis=0)
-                y_pred = model.predict(input_data).squeeze()
-                i_pred = int(np.argmax(y_pred))
-                acc = y_pred[i_pred]
-                if acc < 0.98: 
-                    continue
-                key_event = gesture[i_pred]
-                gesture_seq.append(key_event)
-                if len(gesture_seq) < 2:
-                    continue
-                this_gesture = '?' 
-                
-                if gesture_seq[-1] == gesture_seq[-2]: 
-                    if key_flag == 0:
-                        this_gesture = key_event; res = hand_landmarks
-                        if this_gesture == gesture[0]:
-                            pg.hotkey('alt', 'tab')
-                            print("알탭")
-                            key_flag = 1;
-                            
-                        elif this_gesture == gesture[1]:
-                            pg.hotkey('alt', 'F4')
-                            print("알포")
-                            key_flag = 1; 
-                            
-                        elif this_gesture == gesture[2]:
-                            pg.press('f')
-                            print("풀")
-                            key_flag = 1; 
-                            
-                        else: 
-                            v_value=volumn_value(hand_landmarks.landmark)
-                            v_value= -((v_value+6) * 96/18)
-                            v_value = min(0, v_value)
-                            if v_value < -70:
-                                v_value = -70.0
-                            volume.SetMasterVolumeLevel(v_value, None)
-                            print("볼륨")
-                                        
-                        cv2.putText(img, f'{this_gesture.upper()}', org=(10, 30), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=1, color=(255, 255, 255), thickness=2)                    
+                    if len(seq) < seq_length: 
+                        continue
+                    input_data = np.expand_dims(np.array(seq[-seq_length:], dtype=np.float32), axis=0)
+                    y_pred = model.predict(input_data).squeeze()
+                    i_pred = int(np.argmax(y_pred))
+                    acc = y_pred[i_pred]
+                    if acc < 0.98: 
+                        continue
+                    key_event = gesture[i_pred]
+                    gesture_seq.append(key_event)
+                    if len(gesture_seq) < 2:
+                        continue
+                    this_gesture = '?' 
+                    
+                    if gesture_seq[-1] == gesture_seq[-2]: 
+                        if key_flag == 0:
+                            this_gesture = key_event; res = hand_landmarks
+                            if this_gesture == gesture[0]:
+                                pg.keyDown('alt')
+                                pg.press('tab')
+                                print("알탭")
+                                key_flag = 2;
+                                
+                            elif this_gesture == gesture[1]:
+                                pg.hotkey('alt', 'F4')
+                                print("알포")
+                                key_flag = 1; 
+                                
+                            elif this_gesture == gesture[2]:
+                                pg.press('f')
+                                print("풀")
+                                key_flag = 1; 
+                                
+                            else: 
+                                v_value=volumn_value(hand_landmarks.landmark) 
+                                volume.SetMasterVolumeLevel(v_value, None)                                       
+                            cv2.putText(img, f'{this_gesture.upper()}', org=(10, 30), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=1, color=(255, 255, 255), thickness=2)                    
 
     cv2.imshow('img', img)
     if cv2.waitKey(1) == ord('q'):
