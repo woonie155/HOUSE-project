@@ -3,16 +3,18 @@ import mediapipe as mp
 import numpy as np
 from tensorflow.keras.models import load_model
 import pyautogui as pg
+from pynput.keyboard import Key, Controller
 import time, os
 import math
 import datetime as dt
 from pynput import keyboard
 
+keyboard = Controller()
 gesture = ['ALT_TAB', 'ALT_F4', 'FULL', 'SOUND_CONTROL']
 seq_length = 30
-model = load_model('models/cursor_model.h5')
+model = load_model('models/cursor_model_t1.h5')
 seq = []
-gesture_seq = [];
+gesture_seq = []
 
 pg.FAILSAFE = False 
 
@@ -28,8 +30,8 @@ mp_hands = mp.solutions.hands
 mp_drawing = mp.solutions.drawing_utils
 hands = mp_hands.Hands(
     max_num_hands=1,
-    min_detection_confidence=0.8,
-    min_tracking_confidence=0.03)
+    min_detection_confidence=0.6,
+    min_tracking_confidence=0.5)
 
 seq = []
 gesture_seq = []
@@ -55,7 +57,7 @@ def keybord_event_flag(landmarks): #4,8,12,16,20
         if(abs(landmarks[4].y - landmarks[16].y)<=key_value and abs(landmarks[4].y - landmarks[20].y)<=key_value
         and abs(landmarks[20].y - landmarks[16].y)<=key_value):
             return 1
-    if(landmarks[4].x>landmarks[5].x and landmarks[10].y >landmarks[12].y):
+    if(landmarks[4].x>landmarks[2].x):
         return 1
     return 0
 
@@ -68,7 +70,6 @@ while cap.isOpened():
     if result.multi_hand_landmarks is not None:
         for hand_landmarks in result.multi_hand_landmarks:
             if not keybord_event_flag(hand_landmarks.landmark):
-                #gesture_seq=[]
                 if key_flag == 1:
                     c += 1
                     if c%12 == 0:
@@ -123,7 +124,7 @@ while cap.isOpened():
                 if gesture_seq[-1] == gesture_seq[-2] == gesture_seq[-3]: 
                     if key_flag == 0:
                         this_gesture = key_event; res = hand_landmarks
-                        key_flag = 1; gesture_seq=[]; seq=[]
+                        key_flag = 1; seq=[]
                         if this_gesture == gesture[0]:
                             pg.hotkey('alt', 'tab')
                             print("알탭")
