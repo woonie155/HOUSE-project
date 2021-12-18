@@ -10,9 +10,10 @@ from comtypes import CLSCTX_ALL
 from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
 from win32api import GetSystemMetrics
 import mouse
+import threading
 from PyQt5 import QtCore, QtWidgets, QtGui
 from PyQt5.QtGui import QMovie
-import threading
+
 
 devices = AudioUtilities.GetSpeakers()
 interface = devices.Activate(IAudioEndpointVolume._iid_,CLSCTX_ALL, None)
@@ -44,6 +45,7 @@ mouse_event_threshold_angle = [0.5, 0.7, 0.7, 0.3, 0.7]
 duration_threshold = 5
 duration_threshold_ring = 20
 duration = [0, 0, 0, 0, 0]
+double_click_ready = False
 
 mouse_pressed = [False, mouse.is_pressed('left'), mouse.is_pressed('middle'), mouse.is_pressed('right'), False]
 finger_bend = [False, False, False, False, False]
@@ -67,7 +69,7 @@ def position_mouse(landmarks):
     cursor_position_list_y.pop(0)
     cursor_position_x, cursor_position_y = arithmetic_mean(list((landmarks.landmark[0], landmarks.landmark[17])))
     cursor_position_list_x.append((((cursor_position_x - 0.5) / ratio) + 0.5) * display_width)
-    cursor_position_list_y.append((((cursor_position_y - 0.5) / ratio) + 0.5) * display_height)
+    cursor_position_list_y.append((((cursor_position_y - 0.5) / ratio) + 0.5 - (0.5 * ((1 / ratio) - 1.25))) * display_height)
     mouse.move(sum(cursor_position_list_x) / len(cursor_position_list_x), sum(cursor_position_list_y) / len(cursor_position_list_y))
 
 
@@ -152,22 +154,28 @@ def is_bend(hand, threshold):
 
 
 def click():
-    global duration
+    global duration, double_click_ready
     if finger_bend[1]:
         if not mouse_pressed[1]:
-            if duration[1] < duration_threshold:
+            if double_click_ready:
+                mouse.click('left')
+                double_click_ready = False
+            elif duration[1] < duration_threshold:
                 duration[1] += 1
             else:
                 mouse.press('left')
                 mouse_pressed[1] = True
                 duration[1] = 0
     else:
+        if duration == 0:
+            double_click_ready = False
         if mouse_pressed[1]:
             mouse.release('left')
             mouse_pressed[1] = False
         elif duration[1] != 0:
             mouse.click('left')
             duration[1] = 0
+            double_click_ready = True
 
     if finger_bend[2]:
         if not mouse_pressed[2]:
@@ -196,7 +204,6 @@ def click():
     else:
         if mouse_pressed[3]:
             mouse_pressed[3] = False
-
 
 def arithMean(landmarks):
     sum_x = 0
@@ -301,6 +308,9 @@ class light_green(QtWidgets.QMainWindow):
         self.move(*self.xy)
     def mouseDoubleClickEvent(self, event):
         sys.exit()
+    def closeEvent(self, event):
+        if self.img1 == "exit.gif":
+            sys.exit()
         
 global flag_exit
 flag_exit = False
@@ -394,7 +404,7 @@ while cap.isOpened():
                                 image, f'{this_gesture.upper()}', org=(10, 30), fontFace=cv2.FONT_HERSHEY_SIMPLEX,
                                 fontScale=1, color=(255, 255, 255), thickness=2)
 
-    cv2.imshow('img', image)
+    #cv2.imshow('img', image)
     if cv2.waitKey(1) == ord('q'):
         flag_exit = True
         cap.release()
